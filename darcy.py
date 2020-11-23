@@ -1,25 +1,21 @@
 from dolfin import *
-
-class Bottom(SubDomain):
-    def inside(self,x, on_boundary):
-        return x[2]<0.001 and on_boundary and (.2<x[0]<.8) and (.2<x[1]<.8)
-
-class Top(SubDomain):
-    def inside(self,x, on_boundary):
-        return x[2]>.99 and on_boundary
-
-def wall(x, on_boundary):
-        return  ((x[0]<=.3 or x[0]>=.7) or (x[1]<=.3 or x[1]>=.7))  and on_boundary
+from tools import *
 
 ### MESH & FUNCTION SPACE ###
 
-mesh    = UnitCubeMesh(20,20,20)
+msh_file = "lobule.msh"
 
-Qe      = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
-Be      = FiniteElement("Bubble",   mesh.ufl_cell(), 4)
-Ve      = VectorElement(NodalEnrichedElement(Qe, Be))
-element = MixedElement(Ve,Qe)
-W       = FunctionSpace(mesh, element)
+msh_to_xdmf(msh_file,"Meshes")
+
+mesh_file = XDMFFile("Meshes/mesh.xdmf")
+mesh = Mesh()
+mesh_file.read(mesh)
+
+Q      = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
+B      = FiniteElement("Bubble",   mesh.ufl_cell(), 4)
+V      = VectorElement(NodalEnrichedElement(Q, B))
+E      = MixedElement(V,Q)
+W      = FunctionSpace(mesh, E)
 
 n       = FacetNormal(mesh)
 u,p     = TrialFunctions(W)
@@ -27,35 +23,34 @@ v,q     = TestFunctions(W)
 
 ### SUB-DOMAINS ###
 
-bottom = Bottom()
-top    = Top()
+subdomains_file = XDMFFile("Meshes/subdomains.xdmf")
+subdomains_mesh = Mesh()
+subdomains_file.read(subdomains_mesh)
 
-sub_domains = MeshFunction('size_t', mesh, mesh.topology().dim() - 1)
-sub_domains.set_all(0)
+subdomains = MeshValueCollection("size_t", mesh, 2)
+subdomains_file.read(subdomains)
 
-bottom.mark(sub_domains, 1)
-top.mark(sub_domains, 2)
-
-ds = Measure('ds', domain=mesh, subdomain_data=sub_domains)
-
-### BOUNDARY CONDITION ###
-
-bc = DirichletBC(W.sub(0), Constant((0,0,0)), wall) # no slip top
+subdomains  = cpp.mesh.MeshFunctionSizet(mesh, subdomains)
+ds          = Measure('ds', domain=mesh, subdomain_data=subdomains)
 
 ### VARIATIONAL FORMULATION ###
 
-a =  (dot(u,v) - div(v)*p - div(u)*q)*dx
-L = -Constant(1)*dot(n,v)*ds(1) + Constant(2)*dot(n,v)*ds(2)
+a  =  (dot(u,v) - div(v)*p - div(u)*q)*dx
+L  = -Constant(3)*dot(n,v)*ds(1) + Constant(7)*dot(n,v)*ds(2)
 
-w = Function(W)
+bc = DirichletBC(W.sub(0), Constant((0,0,0)), subdomains, 3) 
+w  = Function(W)
 
-solve(a == L, w, bc, solver_parameters={'linear_solver': 'mumps'})
+solve(a == L, w,bc, solver_parameters={'linear_solver': 'mumps'})
 
-file = File("output/flow.pvd")
+file = File("Output/flow.pvd")
 file << w.split()[0]
 
-file = File("output/pressure.pvd")
+file = File("Output/mesh.pvd")
+file << mesh
+
+file = File("Output/pressure.pvd")
 file << w.split()[1]
 
-file = File("output/subdomains.pvd")
-file << sub_domains
+file = File("Output/subdomains.pvd")
+file << subdomains

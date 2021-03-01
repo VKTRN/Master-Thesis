@@ -96,15 +96,13 @@ def get_reference_points():
 
 def get_physical_points(P):
     
-    r=.1
+    r=.5
     U = [P[0]]
-    U.append(P[1] + np.array([0,0,0])) 
 
-    for i in range(2,13):
-        s = np.random.random(3)*.0
-        s[2]=0
-        U.append(P[i]  + s)
-    U.append(P[13]) 
+    for i in range(1,13):
+        U.append(P[i] )
+    s = np.random.random()*r
+    U.append(P[13] + np.array([0,0,s])) 
 
     return U
 
@@ -426,7 +424,7 @@ def move_nodes(mesh, X):
 
     return mesh
 
-def generate_permeability_tensor(mesh):
+def generate_permeability_tensor(mesh, mesh2):
 
     P                    = get_reference_points()
     U                    = get_physical_points(P)
@@ -456,13 +454,15 @@ def generate_permeability_tensor(mesh):
 
     solve(a == L, X, bcs,solver_parameters={'linear_solver': 'mumps'})
 
+    X.set_allow_extrapolation(True)
+
     #########################################
     ### GET EFFECTIVE PERMEABILITY TENSOR ###
     #########################################
 
 
-    DG0 = TensorFunctionSpace(mesh, 'DG', 0)
-    DG1 = TensorFunctionSpace(mesh, 'DG', 1)
+    DG0 = TensorFunctionSpace(mesh2, 'DG', 0)
+    DG1 = TensorFunctionSpace(mesh2, 'DG', 1)
     I   = Constant(((1,0,0),(0,1,0), (0,0,1)))
     J   = project(grad(X)+I, DG0) # project jacobian onto DG0
 
@@ -478,13 +478,15 @@ def generate_permeability_tensor(mesh):
 ########################
 
 file         = "Meshes/1x/mesh.xdmf"
+file2        = "Meshes/round_1x/mesh.xdmf"
 surface_file = "Meshes/1x/subdomains.xdmf"
 lines_file   = "Meshes/1x/sublines.xdmf"
 mesh         = get_mesh(file)
+mesh2        = get_mesh(file2)
 solutions    = []
 t1           = time()
 
-K_eff = generate_permeability_tensor(mesh)
+K_eff = generate_permeability_tensor(mesh, mesh2)
     
 File("Output/effective_permeability.pvd") << K_eff
 

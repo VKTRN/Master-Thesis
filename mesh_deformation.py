@@ -95,7 +95,7 @@ def get_physical_points(P):
     
     r=.1
     U = [P[0]]
-    U.append(P[1] + np.array([0,0,0])) 
+    U.append(P[1] + np.array([1,0,0])) 
 
     for i in range(2,13):
         s = np.random.random(3)*.0
@@ -390,7 +390,7 @@ def move_nodes(mesh, X):
 
     return mesh
 
-def transform_mesh(mesh):
+def get_deformation(mesh):
 
     P                    = get_reference_points()
     U                    = get_physical_points(P)
@@ -420,23 +420,26 @@ def transform_mesh(mesh):
 
     solve(a == L, X, bcs,solver_parameters={'linear_solver': 'mumps'})
 
-    mesh = move_nodes(mesh, X)
-
-    return mesh
+    return X
 
 ########################
 ########################
 ########################
 
-file         = "Meshes/1x/mesh.xdmf"
+file_square  = "Meshes/1x/mesh.xdmf"
+file_round   = "Meshes/round_2x/mesh.xdmf"
 surface_file = "Meshes/1x/subdomains.xdmf"
 lines_file   = "Meshes/1x/sublines.xdmf"
-mesh         = get_mesh(file)
+mesh_square  = get_mesh(file_square)
+mesh_round   = get_mesh(file_round)
 solutions    = []
 t1           = time()
 
-mesh = transform_mesh(mesh)
+X = get_deformation(mesh_square)
+X.set_allow_extrapolation(True)
+
+mesh_stretched = move_nodes(mesh_round, X)
     
-File("Output/stretched_mesh.pvd") << mesh
+File("Output/stretched_mesh.pvd") << mesh_stretched
 
 print("Elapsed time =",round(time()-t1,2), "s")
